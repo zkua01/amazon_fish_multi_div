@@ -1,0 +1,9 @@
+*.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.rds
+*.Rout
+data/
+output/
+temp_swap/
