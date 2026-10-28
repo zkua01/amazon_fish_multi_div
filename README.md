@@ -116,7 +116,8 @@ Scripts are designed be run sequentially within each directory. The recommended 
 
 ## Data Sources
 
-Large raster datasets are not bundled with this repository due to file size. Download them before running `01e`–`01g`.
+The complete `data/` and `output/` directories are archived on Zenodo [DOI: 10.5281/zenodo.23717279]. 
+Download and extract them to the repository root before running scripts.
 
 | Dataset | Source | Reference |
 |---------|--------|-----------|
@@ -130,9 +131,9 @@ Large raster datasets are not bundled with this repository due to file size. Dow
 | FishBase taxonomy | [fishbase.org](https://www.fishbase.org) | Froese & Pauly (2025) |
 | FISHMORPH trait database | Su et al. (2021); Brosse et al. (2021) | — |
 
-### ArcGIS-derived intermediates (bundled in `data/processed/`)
+### Intermediates datasets
 
-The following files were generated in ArcGIS Pro and cannot be regenerated from this pipeline alone:
+The following files were generated externally and cannot be reproduced directly from this pipeline:
 
 - `slope15.csv` — % basin area with slope ≥ 15° (from WorldClim DEM)
 - `soil_types.csv` — Soil type proportions (Harmonized World Soil Database; Caspari & Schad 2022)
