@@ -43,9 +43,9 @@ dp <- dataprepared_filt |>
 
 responses <- c("muDiv", "logSR", "sesFD", "sesPD")
 
-div     <- dplyr::select(dp, all_of(responses))
+div <- dplyr::select(dp, all_of(responses))
 polygon <- dplyr::select(dp, SBD_CD, geometry) |> st_as_sf() |> st_make_valid()
-coord   <- dplyr::select(dp, CENT_X, CENT_Y)
+coord <- dplyr::select(dp, CENT_X, CENT_Y)
 
 # Predictors: log-transform area, then standardise all
 env <- dplyr::select(dp, AREA:sample_area) |>
