@@ -39,6 +39,7 @@ amazon_fish_multi_div/
 │   ├── 03_brt_models/ # BRT fitting, bootstrap, validation, figures
 │   ├── 04_conservation_overlap/ # UpSet plots, conservation plan alignment
 │   ├── 05_figures/ # Fig. 1 and SI Fig. S4
+|   ├── 06_sensitivity/ # Sampling effort sensitivity analysis
 │   └── utils/ # Shared utility functions
 │
 ├── src/ # C++ source code for TPD calculations
@@ -96,6 +97,12 @@ Scripts are designed be run sequentially within each directory. The recommended 
 |--------|---------|------------|
 | `05a_fig1_rank_maps.R` | Diversity rank maps (Fig. 1) | `output/figures/main/Fig1_*.png` |
 | `05b_figS4_distribution_maps.R` | Spatial distribution + latitudinal gradient (SI Fig. S4) | `output/figures/si/FigS4_*.png` |
+
+### `06_sensitivity/` - Sampling effort sensitivity analysis
+
+| Script | Purpose | Key output |
+|--------|---------|------------|
+| `06a_sampling_sensitivity.R` | Sensitivity analysis for sampling effort | `output/figures/extended/ExtendedDataFigE8_*.png` |
 
 ### `utils/` — Shared functions
 
