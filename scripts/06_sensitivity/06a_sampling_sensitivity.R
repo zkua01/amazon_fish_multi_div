@@ -6,46 +6,9 @@
 #          of sampling density.
 #
 # Design:
-#   Two trimming levels are applied to the sampling effort predictor
+#   Four trimming levels are applied to the sampling effort predictor
 #   (sample_area = unique sampling events per km²):
 #
-#   Level 1 (conservative): Remove bottom 10% and top 10% by sample_area
-#     → 143 − 14 = 129 basins retained (n/predictor ≈ 9.2)
-#     Justification: 10% trimming is the most common sensitivity threshold
-#     in macroecological BRT studies (Pradervand et al. 2014, Ecography;
-#     Tordoni et al. 2024, GEB). It removes the most obviously biased
-#     basins (e.g., single-event tributaries in the western Andes;
-#     heavily surveyed confluences near Manaus/Belém) while retaining
-#     sufficient sample size for stable BRT fitting (Elith et al. 2008,
-#     J. Anim. Ecol. recommends n > 100 for boosted models with ~10–15
-#     predictors).
-#
-#   Level 2 (moderate): Remove bottom 20% and top 20% by sample_area
-#     → 143 − 28 = 115 basins retained (n/predictor ≈ 8.2)
-#     Justification: 20% trimming tests whether conclusions survive a
-#     more aggressive removal. At n = 115 with 14 predictors, the
-#     observation-to-parameter ratio remains above the minimum of 5:1
-#     cited in Hastie et al. (2009, Elements of Statistical Learning)
-#     for tree ensemble methods. This level also approximates the
-#     interquartile range of sampling effort across the Amazon basin
-#     (IQR ≈ 0.005–0.025 sites/km²), ensuring the retained set spans
-#     the ecologically meaningful gradient.
-#
-#   Lower boundary rationale:
-#     Basins in the bottom 10–20% have sample_area < 0.005 sites/km²,
-#     meaning fewer than 1 unique sampling event per 200 km². At this
-#     density, expected species detection is < 50% of true richness
-#     (based on the rarefaction curves in Jézéquel et al. 2020, Sci. Data).
-#     Their inclusion inflates the apparent sampling-effort signal in TD.
-#
-#   Upper boundary rationale:
-#     Basins in the top 10–20% have sample_area > 0.03 sites/km²,
-#     typically corresponding to the lower Amazon near Belém and the
-#     Rio Negro confluence near Manaus. These are areas where extensive
-#     survey effort (multiple expeditions, long-term monitoring) may
-#     detect rare species that are genuinely absent from less-sampled
-#     but environmentally similar basins, creating a pseudo-signal of
-#     high diversity driven by detection rather than ecology.
 #
 # Inputs:
 #   data/processed/dataprepared_filtered.rds   (from 03b)
@@ -85,7 +48,7 @@ source(here("scripts", "utils", "brt_function.R"))
 input_dir <- here("data", "processed")
 inter_dir <- here("output", "intermediate")
 basin_path <- here("data", "raw", "SubDrainageShapefile", "SubDrainageShapefile.shp")
-fig_ext <- here("output", "figures", "extended")
+fig_si <- here("output", "figures", "si")
 dir.create(fig_ext, showWarnings = FALSE, recursive = TRUE)
 
 # =============================================================================
@@ -103,18 +66,24 @@ resp_labels <- c(muDiv = "μ-diversity", logSR = "Taxonomic diversity",
                  sesFD = "Functional diversity", sesPD = "Phylogenetic diversity")
 
 # Compute sampling effort quantiles
-sq <- quantile(dataprepared_filt$sample_area, probs = c(0.05, 0.10, 0.90, 0.95), na.rm = TRUE)
+sq <- quantile(dataprepared_filt$sample_area, probs = c(0.05, 0.10, 0.15, 0.20, 0.80, 0.85, 0.90, 0.95), na.rm = TRUE)
 message("Sampling effort quantiles (sites/km²):")
 message("  5th: ", round(sq[1], 5))
 message("  10th: ", round(sq[2], 5))
-message("  90th: ", round(sq[3], 5))
-message("  95th: ", round(sq[4], 5))
+message("  15th: ", round(sq[3], 5))
+message("  20th: ", round(sq[4], 5))
+message("  80th: ", round(sq[5], 5))
+message("  85th: ", round(sq[6], 5))
+message("  90th: ", round(sq[7], 5))
+message("  95th: ", round(sq[8], 5))
 
 # Define trimming levels
 trim_levels <- list(
   none = list(lo = -Inf, hi = Inf, label = "Full dataset (n=143)"),
-  trim5 = list(lo = sq[1], hi = sq[4], label = "Remove 5% extremes (n≈127)"),
-  trim10 = list(lo = sq[2], hi = sq[3], label = "Remove 10% extremes (n≈113)")
+  trim5 = list(lo = sq[1], hi = sq[8], label = "Remove 5% extremes (n=127)"),
+  trim10 = list(lo = sq[2], hi = sq[7], label = "Remove 10% extremes (n=113)"),
+  trim15 = list(lo = sq[3], hi = sq[6], label = "Remove 15% extremes (n=99)"),
+  trim20 = list(lo = sq[4], hi = sq[5], label = "Remove 20% extremes (n=85)")
 )
 
 # =============================================================================
@@ -204,7 +173,7 @@ for (trim_name in names(trim_levels)) {
 influence_all <- bind_rows(unlist(lapply(influence_results, function(x) {
   lapply(x, function(y) y)
 }), recursive = FALSE)) |>
-  mutate(trim_level = factor(trim_level, levels = c("none", "trim5", "trim10")))
+  mutate(trim_level = factor(trim_level, levels = c("none", "trim5", "trim10", "trim15", "trim20")))
 
 write.csv(influence_all, file.path(inter_dir, "sensitivity_influence_comparison.csv"),
           row.names = FALSE)
@@ -221,7 +190,7 @@ for (resp in responses) {
   base <- influence_all |> filter(trim_level == "none", response == resp) |>
     arrange(desc(influence)) |> pull(predictor)
   
-  for (trim_name in c("trim5", "trim10")) {
+  for (trim_name in c("trim5", "trim10", "trim15", "trim20")) {
     comp <- influence_all |> filter(trim_level == trim_name, response == resp) |>
       arrange(desc(influence)) |> pull(predictor)
     
@@ -314,8 +283,8 @@ influence_plot <- influence_all |>
   ) |>
   mutate(
     response_lab = factor(resp_labels[response], levels = c("Taxonomic diversity","Phylogenetic diversity","Functional diversity","μ-diversity")),
-    trim_lab = factor(trim_level, levels = c("trim10", "trim5", "none"),
-                      labels = c("Trim 10% (n=113)", "Trim 5% (n=127)", "Full (n=143)"))
+    trim_lab = factor(trim_level, levels = c("trim20","trim15","trim10", "trim5", "none"),
+                      labels = c("Trim 20% (n=85)", "Trim 15% (n=99)", "Trim 10% (n=113)", "Trim 5% (n=127)", "Full (n=143)"))
   )
 
 plot_sensitivity_influence <- function(data, response_name) {
@@ -334,8 +303,8 @@ plot_sensitivity_influence <- function(data, response_name) {
     geom_hline(yintercept = 7.14, linetype = "dashed", colour = "red",
                linewidth = 0.6) +
     coord_flip(ylim = c(0, 65)) +
-    scale_colour_manual(name = "Dataset", values = c("#bee3db","#5fa8d3","#1b4965")) +
-    scale_fill_manual(name = "Dataset", values = c("#bee3db","#5fa8d3","#1b4965")) +
+    scale_colour_manual(name = "Dataset", values = c("#76DDE5","#05B5CC","#0084BD","#00459E","#062F65")) +
+    scale_fill_manual(name = "Dataset", values = c("#76DDE5","#05B5CC","#0084BD","#00459E","#062F65")) +
     labs(
       title = resp_labels[response_name],
       x = NULL,
@@ -362,46 +331,46 @@ p_md <- plot_sensitivity_influence(influence_plot, "muDiv")
 
 fig_e8 <- ggpubr::ggarrange(p_td, p_pd, p_fd, p_md, ncol = 2, nrow = 2, common.legend = TRUE, legend = "bottom", labels = "AUTO")
 
-ggsave(file.path(fig_ext, "ExtendedDataFig_E8_sampling_sensitivity.png"),
+ggsave(file.path(fig_si, "SFig_E8_sampling_sensitivity.png"),
        plot = fig_e8, width = 5500, height = 5000, units = "px", dpi = 400)
 
 message("Extended Data Fig. E8 saved.")
 
-influence_wide <- dplyr::select(influence_plot, -n_basins, -trim_lab, -response, -label) |>
-  pivot_wider(names_from = trim_level, values_from = influence) |>
-  mutate(delta_5  = trim5 - none,
-         delta_10 = trim10 - none) |>
-  pivot_longer(c(delta_5, delta_10), names_to = "trim", values_to = "delta") |>
-  mutate(trim_lab = factor(trim, levels = c("delta_5", "delta_10"), labels = c("Δ Full-5%", "Δ Full-10%")),
-         response_lab = factor(response_lab, levels = c("μ-diversity","Functional diversity","Phylogenetic diversity","Taxonomic diversity"), labels = c("μD","FD","PD","TD")))
-
-heatmap_d5 <- ggplot(filter(influence_wide, trim_lab == "Δ Full-5%"), aes(x = predictor, y = response_lab, fill = delta)) +
-  geom_tile(colour = "white") +
-  geom_text(aes(label = round(delta, 1)), size = 4) +
-  scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b",
-                       midpoint = 0, name = "Δ influence (%)") +
-  labs(x = NULL, y = NULL, title = "Δ Full-5%") +
-  theme_minimal() +
-  theme(axis.text.y = element_text(size = 11, colour = "black", face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1, size = 10, colour = "black"),
-        legend.title = element_text(size = 11),
-        legend.text = element_text(size = 10),
-        plot.title = element_text(size = 14, face = "bold"))
-heatmap_d10 <- ggplot(filter(influence_wide, trim_lab == "Δ Full-10%"), aes(x = predictor, y = response_lab, fill = delta)) +
-  geom_tile(colour = "white") +
-  geom_text(aes(label = round(delta, 1)), size = 4) +
-  scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b",
-                       midpoint = 0, name = "Δ influence (%)") +
-  labs(x = NULL, y = NULL, title = "Δ Full-10%") +
-  theme_minimal() +
-  theme(axis.text.y = element_text(size = 11, colour = "black", face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1, size = 10, colour = "black"),
-        legend.title = element_text(size = 11),
-        legend.text = element_text(size = 10),
-        plot.title = element_text(size = 14, face = "bold"))
-
-heatmap_delta <- ggpubr::ggarrange(heatmap_d5, heatmap_d10, common.legend = TRUE, legend = "bottom")
-ggsave(file.path(fig_ext, "ExtendedDataFig_E8_sampling_sensitivity_heatmap.png"),
-       plot = heatmap_delta, width = 5500, height = 5000, units = "px", dpi = 400)
+# influence_wide <- dplyr::select(influence_plot, -n_basins, -trim_lab, -response, -label) |>
+#   pivot_wider(names_from = trim_level, values_from = influence) |>
+#   mutate(delta_5  = trim5 - none,
+#          delta_10 = trim10 - none) |>
+#   pivot_longer(c(delta_5, delta_10), names_to = "trim", values_to = "delta") |>
+#   mutate(trim_lab = factor(trim, levels = c("delta_5", "delta_10"), labels = c("Δ Full-5%", "Δ Full-10%")),
+#          response_lab = factor(response_lab, levels = c("μ-diversity","Functional diversity","Phylogenetic diversity","Taxonomic diversity"), labels = c("μD","FD","PD","TD")))
+# 
+# heatmap_d5 <- ggplot(filter(influence_wide, trim_lab == "Δ Full-5%"), aes(x = predictor, y = response_lab, fill = delta)) +
+#   geom_tile(colour = "white") +
+#   geom_text(aes(label = round(delta, 1)), size = 4) +
+#   scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b",
+#                        midpoint = 0, name = "Δ influence (%)") +
+#   labs(x = NULL, y = NULL, title = "Δ Full-5%") +
+#   theme_minimal() +
+#   theme(axis.text.y = element_text(size = 11, colour = "black", face = "bold"),
+#         axis.text.x = element_text(angle = 45, hjust = 1, size = 10, colour = "black"),
+#         legend.title = element_text(size = 11),
+#         legend.text = element_text(size = 10),
+#         plot.title = element_text(size = 14, face = "bold"))
+# heatmap_d10 <- ggplot(filter(influence_wide, trim_lab == "Δ Full-10%"), aes(x = predictor, y = response_lab, fill = delta)) +
+#   geom_tile(colour = "white") +
+#   geom_text(aes(label = round(delta, 1)), size = 4) +
+#   scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b",
+#                        midpoint = 0, name = "Δ influence (%)") +
+#   labs(x = NULL, y = NULL, title = "Δ Full-10%") +
+#   theme_minimal() +
+#   theme(axis.text.y = element_text(size = 11, colour = "black", face = "bold"),
+#         axis.text.x = element_text(angle = 45, hjust = 1, size = 10, colour = "black"),
+#         legend.title = element_text(size = 11),
+#         legend.text = element_text(size = 10),
+#         plot.title = element_text(size = 14, face = "bold"))
+# 
+# heatmap_delta <- ggpubr::ggarrange(heatmap_d5, heatmap_d10, common.legend = TRUE, legend = "bottom")
+# ggsave(file.path(fig_ext, "ExtendedDataFig_E8_sampling_sensitivity_heatmap.png"),
+#        plot = heatmap_delta, width = 5500, height = 5000, units = "px", dpi = 400)
 
 message("06a complete.")
